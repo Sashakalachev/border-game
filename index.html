@@ -221,7 +221,7 @@ function drawWorld(off){
   ctx.lineWidth=3;ctx.strokeStyle='rgba(8,14,22,.85)';ctx.strokeText(C[o].ru,x,y);ctx.fillStyle='#f4f1e6';ctx.fillText(C[o].ru,x,y);}
  drawCities(W,off,k,sx,sy,live);
  if(live){
-  const sel=new Set(selArmies());
+  const sel=new Set(selArmies());drawFlags(W,sx,sy);
   for(const a of G.armies){if(a.dest>=0&&(sel.has(a)||a.c===G.player)){const pa=W.prov[a.p],tx=W.prov[a.dest];ctx.strokeStyle=sel.has(a)?'#ffd86b':'rgba(255,255,255,.3)';ctx.lineWidth=sel.has(a)?2:1;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(sx(pa.ax),sy(pa.ay));ctx.lineTo(sx(pa.ax+wdx(pa.ax,tx.ax)),sy(tx.ay));ctx.stroke();ctx.setLineDash([]);}}
   const chip=(cc,x,y,n,hi)=>{if(k<4.5){ctx.fillStyle=cc.color;ctx.strokeStyle='#000';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,4,0,7);ctx.fill();ctx.stroke();return;}
    const w=28,h=17;ctx.fillStyle='#10151cdd';ctx.fillRect(x-w/2,y-h/2,w,h);ctx.strokeStyle=cc.color;ctx.lineWidth=2;ctx.strokeRect(x-w/2,y-h/2,w,h);try{ctx.drawImage(cFlag(cc),x-w/2+1,y-h/2+1,13,15);}catch(e){}
@@ -240,7 +240,7 @@ function drawCities(W,off,k,sx,sy,live){
   ctx.beginPath();if(c.cap){ctx.fillStyle='#ffd86b';ctx.strokeStyle='#000';ctx.lineWidth=1.4;for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=(i%2?r*0.5:r*1.5);ctx.lineTo(x+rr*Math.cos(a),y+rr*Math.sin(a));}ctx.closePath();}else{ctx.fillStyle=oc?lite(oc.color):'#fff';ctx.strokeStyle='#000';ctx.lineWidth=1.4;ctx.arc(x,y,r,0,7);}
   ctx.fill();ctx.stroke();if(contested){ctx.strokeStyle='#ff5a4d';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r+4,0,7);ctx.stroke();}
   if(k>=(c.cap?5:big?8:mid?11:16)){const lk=Math.floor(x/70)*4096+Math.floor(y/14);if(!c.cap&&taken.has(-lk))continue;taken.add(-lk);ctx.font=(c.cap?'700 ':'')+'11px system-ui';ctx.lineWidth=2.5;ctx.strokeStyle='rgba(8,14,22,.9)';ctx.strokeText(c.n,x,y-r-7);ctx.fillStyle=c.cap?'#ffe9a8':'#f2f2f2';ctx.fillText(c.n,x,y-r-7);}}}
-function loop(){requestAnimationFrame(loop);camStep();if(pendUI&&!hovering()){pendUI=false;updPanels();updInfo();}if(animNeed&&G&&G.running)dirty=1;if(G&&G.running)simTick();if(dirty){dirty=0;draw();}}
+function loop(){requestAnimationFrame(loop);musAuto();camStep();if(pendUI&&!hovering()){pendUI=false;updPanels();updInfo();}if(animNeed&&G&&G.running)dirty=1;if(G&&G.running)simTick();if(dirty){dirty=0;draw();}}
 // ---------- picking ----------
 function pick(sx,sy){const W=curW();if(!W)return-1;let wx=(sx-view.tx)/view.k;wx=((wx+180)%360+360)%360-180;const wy=(sy-view.ty)/view.k;for(let p=0;p<W.P;p++){const b=W.prov[p].bb;if(wx<b[0]||wx>b[2]||wy<b[1]||wy>b[3])continue;if(hctx.isPointInPath(W.prov[p].path,wx,wy))return p;}return-1;}
 // ---------- game ----------
@@ -357,6 +357,7 @@ function simStep(){
  // AI
  const ph=G.day%3;
  for(let c=0;c<C.length;c++){if(!C[c].alive||c===G.player||c===G.N)continue;if(c%3===ph)aiOrders(c);}
+ if(G_auto.on&&G.day%2===0)autoPlay();
  if(G.day%10===0){for(let c=0;c<C.length;c++){if(!C[c].alive||c===G.player||c===G.N)continue;aiDiplomacy(c);}
   for(const w of [...G.wars]){if(w[0]===G.player||w[1]===G.player)continue;if(G.day-w[2]>150&&rnd()<0.06)makePeace(w[0],w[1]);}}
  if(G.day%2===0)pushSnap();
@@ -420,7 +421,8 @@ function panelWar(){
   <h4>Войны</h4>${wars.length?wars.map(o=>`<div class="it" data-o="${o}">${imgTag(C[o])}<span class="n">${esc(C[o].ru)}</span><button class="peace" data-o="${o}">Мир</button></div>`).join(''):'<div class="note">Вы ни с кем не воюете.</div>'}
   <h4>Союзы</h4>${alliesOf(p).length?alliesOf(p).map(o=>`<div class="it" data-o="${o}">${imgTag(C[o])}<span class="n">${esc(C[o].ru)}</span><button class="brk" data-o="${o}">Разорвать</button></div>`).join(''):'<div class="note">Союзников нет. Выберите страну на карте и нажмите «Заключить союз» — можно с несколькими.</div>'}
   <h4>Управление</h4><div class="note">ЛКМ — выбрать провинцию и свои армии в ней. <b>ПКМ</b> (или кнопка «Идти сюда») — приказ армиям идти/атаковать. На своей провинции можно нанять армию (10 резерва).</div>`;}
- h+=`<h4>Настройки мира</h4><div class="row"><label>Агрессия ИИ <input id="aggr" type="range" min="0" max="1" step="0.05" value="${G.aggr}" style="accent-color:var(--gold)"></label></div>
+ h+=`<h4>Автозахват и музыка</h4><div class="row"><label><input type="checkbox" id="auto" ${G_auto.on?'checked':''}> 🤖 Автозахват: ИИ создаёт и делит армии, окружает врага</label></div><div class="row"><label><input type="checkbox" id="autow" ${G_auto.war?'checked':''}> Сам объявлять войны слабым соседям</label></div><div class="row"><label><input type="checkbox" id="musauto" ${MUS.auto?'checked':''}> 🎵 Иногда играть марши воюющих стран</label></div><div class="row"><button id="bMusic">${MUS.on?'⏹ Остановить музыку':'🎺 Марш игрока'}</button></div>
+ <h4>Настройки мира</h4><div class="row"><label>Агрессия ИИ <input id="aggr" type="range" min="0" max="1" step="0.05" value="${G.aggr}" style="accent-color:var(--gold)"></label></div>
  ${EVENTS[G.y]?`<div class="row"><label><input type="checkbox" id="hist" ${G.historic?'checked':''}> Исторические события (${G.y===1914?'Первая':'Вторая'} мировая)</label></div>`:''}
  <h4>Сводки</h4><div class="log" id="log"></div>`;
  L.innerHTML=h;updLog();
@@ -428,6 +430,7 @@ function panelWar(){
  L.querySelectorAll('.brk').forEach(b=>b.onclick=()=>breakAlliance(G.player,+b.dataset.o));
  L.querySelectorAll('.peace').forEach(b=>b.onclick=()=>proposePeace(+b.dataset.o));
  if($('bChange'))$('bChange').onclick=()=>{G.player=-1;G.over=false;updPanels();};
+ if($('auto'))$('auto').onchange=e=>{G_auto.on=e.target.checked;if(G_auto.on&&G.player<0)msg('Сначала выберите страну (клик по карте → «Играть за страну»).',4000);};if($('autow'))$('autow').onchange=e=>{G_auto.war=e.target.checked;};if($('musauto'))$('musauto').onchange=e=>{MUS.auto=e.target.checked;if(MUS.auto)musLast=0;};if($('bMusic'))$('bMusic').onclick=()=>{if(MUS.on)musStop();else if(G.player>=0)musPlay(G.player);else msg('Сначала выберите страну.',3000);};
  if($('aggr'))$('aggr').oninput=e=>{G.aggr=+e.target.value;};if($('hist'))$('hist').onchange=e=>{G.historic=e.target.checked;};}
 function updStats(){if(!G||G.player<0||!$('stMan'))return;let na=0;for(const a of G.armies)if(a.c===G.player)na++;$('stProv').textContent=G.cnt[G.player];$('stArm').textContent=na;$('stMan').textContent=Math.floor(G.C[G.player].man);const r=$('bRec');if(r)r.disabled=G.C[G.player].man<10;}
 let lastInfo=0;
@@ -494,12 +497,12 @@ function updInfo(){
  if(inSim&&hovering()){pendUI=true;return;}
  const W=curW();let h='';
  if(selProv>=0){const pr=W.prov[selProv];const own=curOwner()[selProv],c=curC()[own];
-  h+=`<div class="row">${imgTag(c,'flagbig')}<div><b style="font-size:14px">${esc(c.ru)}</b><div class="note">${esc(pr.name)}</div></div></div>`;
+  h+=`<div class="row">${imgTag(c,'flagbig')}<div><b style="font-size:14px">${esc(c.ru)}</b><div class="note">${esc(pr.name)}</div></div></div><div class="row"><button id="bMarch">${MUS.on&&MUS.cid===own?'⏹ Остановить марш':'🎺 Послушать марш'}</button></div>`;
   if(mode==='history'){let cnt=0,ar=0;curOwner().forEach((o,i)=>{if(o===own){cnt++;ar+=W.prov[i].area;}});h+=`<div class="note">${cityList(selProv)}Провинций у державы: ${cnt}<br>Площадь ≈ ${Math.round(ar*110/1000)} млн км²<br>Столица: ${esc(W.prov[c.cap]?.name||'—')}</div>`;}
   else if(G){const here=G.armies.filter(a=>a.p===selProv);const mine=selArmies();
    h+=`<div class="note">Армий здесь: ${here.length}${here.length?' ('+Array.from(new Set(here.map(a=>G.C[a.c].ru))).join(', ')+')':''}<br>${cityList(selProv)}Провинций у страны: ${G.cnt[own]}${G.occ[selProv]>0.01?`<br><b style="color:#ffd86b">⚔ Захват: ${Math.round(G.occ[selProv]*100)}% — ${esc(G.C[G.occBy[selProv]].ru)}</b>`:''}</div>`;
    if(mode==='war'&&G.player>=0){const me=G.player;const myAll=armProv>=0?G.armies.filter(a=>a.p===armProv&&a.c===me):[];
-    if(own===me){h+=`<div class="row"><button id="bRec" class="go" ${G.C[me].man<10?'disabled':''}>＋ Нанять армию (10)</button></div>`;}
+    if(own===me){h+=`<div class="row"><button id="bRec" class="go" ${G.C[me].man<10?'disabled':''}>＋ Нанять армию (10)</button><button id="bFlag" ${flagMode?'class="go"':''}>🚩 Флажки: ${flagMode?'вкл':'выкл'}</button></div>`;}
     else if(own!==G.N){if(atWar(me,own))h+=`<div class="row"><button id="bPeace">🕊 Предложить мир</button></div>`;else if(allied(me,own))h+=`<div class="row"><button id="bBreak">💔 Разорвать союз</button></div>`;else h+=`<div class="row"><button id="bWar" class="danger">⚔ Объявить войну</button><button id="bAlly" class="go">🤝 Заключить союз</button></div>`;}
     if(myAll.length){h+=`<h4>Ваши армии · ${esc(W.prov[armProv].name)}</h4>`+myAll.map(a=>`<label class="it" style="cursor:pointer"><input type="checkbox" data-a="${a.id}" ${(!selIds.size||selIds.has(a.id))?'checked':''}> <span class="n">Армия №${a.id}</span><span class="c">${Math.round(a.n)} ${a.dest>=0?'➜':''}</span></label>`).join('')+
      `<div class="row"><button id="bSplit">✂ Разделить</button><button id="bMerge">⊕ Объединить</button></div>`;
@@ -511,6 +514,7 @@ function updInfo(){
  const on=(id,f)=>{const e=$(id);if(e)e.onclick=f;};
  on('bRec',()=>{const c=G.C[G.player];if(c.man>=10&&G.owner[selProv]===G.player){spawn(G.player,selProv,10);c.man-=10;pushSnap(true);dirty=1;updInfo();updPanels();}});
  on('bAlly',()=>{proposeAlliance(G.owner[selProv]);updInfo();});on('bBreak',()=>{breakAlliance(G.player,G.owner[selProv]);updInfo();});
+ on('bMarch',()=>{const o=curOwner()[selProv];if(MUS.on&&MUS.cid===o)musStop();else musPlay(o);updInfo();});on('bFlag',()=>{flagMode=!flagMode;msg(flagMode?'🚩 Режим флажков: кликайте по своим провинциям — там создаётся армия (10 резерва).':'Режим флажков выключен.',3500);updInfo();});
  on('bWar',()=>{declareWar(G.player,G.owner[selProv]);updInfo();});
  on('bPeace',()=>{proposePeace(G.owner[selProv]);updInfo();});
  on('bPlay',()=>{G.player=G.owner[selProv];G.over=false;zoomOwner(G.player);msg(`Вы играете за ${G.C[G.player].ru}. Нажмите ▶ для старта времени.`,4000);updPanels();updInfo();});
@@ -537,6 +541,7 @@ function paintAt(x,y){const p=pick(x,y);if(p<0||brush<0)return;if(G.owner[p]!==b
 function clickAt(x,y){const p=pick(x,y);
  if(mode==='edit'){if(tool==='pick'&&p>=0){brush=G.owner[p];tool='paint';panelEdit();return;}if(tool==='paint')return;}
  selProv=p;selOwner=p>=0?curOwner()[p]:-1;
+ if(flagMode&&mode==='war'&&G&&G.player>=0&&p>=0&&G.owner[p]===G.player&&G.C[G.player].man>=10){spawn(G.player,p,10);G.C[G.player].man-=10;(G.pulses=G.pulses||[]).push({p,t:performance.now()});pushSnap(true);dirty=1;}
  if(mode==='war'&&G&&G.player>=0&&p>=0&&G.armies.some(a=>a.p===p&&a.c===G.player)){armProv=p;selIds.clear();}
  dirty=1;updInfo();}
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
@@ -551,6 +556,64 @@ const ptrs=new Map();let pinch0=0;
 cv.addEventListener('pointerdown',e=>{ptrs.set(e.pointerId,[e.clientX,e.clientY]);});
 cv.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,[e.clientX,e.clientY]);if(ptrs.size===2){const[a,b]=[...ptrs.values()];const d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(pinch0)zoomAt((a[0]+b[0])/2,(a[1]+b[1])/2,d/pinch0);pinch0=d;moved=true;}});
 cv.addEventListener('pointerup',e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch0=0;});
+// ===== music (procedural marches, original compositions in national styles) =====
+const MUS={ctx:null,master:null,timer:null,cid:-1,on:false,auto:false,next:0,bar:0,score:null,nodes:[]};
+const MSTYLE={GB:{n:'Британский марш',bpm:112,mode:'maj',lead:'sawtooth',len:0.9,oct:0},RU:{n:'Марш Советской армии',bpm:94,mode:'min',lead:'sawtooth',len:1,oct:0,choir:1},DE:{n:'Прусский марш',bpm:120,mode:'min',lead:'square',len:0.5,oct:0},FR:{n:'Марш французской гвардии',bpm:126,mode:'maj',lead:'square',len:0.7,oct:1},US:{n:'Американский марш',bpm:110,mode:'maj',lead:'sawtooth',len:0.8,oct:0},JP:{n:'Марш Страны восходящего солнца',bpm:88,mode:'yo',lead:'triangle',len:0.6,oct:0},CN:{n:'Марш Поднебесной',bpm:92,mode:'pent',lead:'triangle',len:0.7,oct:0},IT:{n:'Марш берсальеров',bpm:136,mode:'maj',lead:'square',len:0.5,oct:1},OT:{n:'Янычарский марш',bpm:100,mode:'harm',lead:'sawtooth',len:0.6,oct:0,jan:1},TR:{n:'Янычарский марш',bpm:100,mode:'harm',lead:'sawtooth',len:0.6,oct:0,jan:1}};
+const SC={maj:[0,2,4,5,7,9,11],min:[0,2,3,5,7,8,10],harm:[0,2,3,5,7,8,11],pent:[0,2,4,7,9],yo:[0,2,5,7,9]};
+function mhash(s){let h=2166136261;for(const c of s)h=Math.imul(h^c.charCodeAt(0),16777619)>>>0;return h;}
+function mrng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function styleOf(c){const base=MSTYLE[c.id];if(base)return{...base};const h=mhash(String(c.id)+c.ru),r=mrng(h);const modes=['maj','min','maj','harm','pent'];return{n:'Парадный марш '+c.ru,bpm:92+Math.floor(r()*40),mode:modes[Math.floor(r()*modes.length)],lead:['sawtooth','square','triangle'][Math.floor(r()*3)],len:0.5+r()*0.5,oct:r()<0.3?1:0};}
+function genScore(c){const st=styleOf(c),h=mhash(String(c.id)+c.ru+'m'),r=mrng(h);const sc=SC[st.mode],root=48+(h%7);const N=sc.length;
+ const cells=[[1,1,1,1],[1.5,.5,1,1],[1,1,2],[.5,.5,1,1,1],[2,1,1],[1,.5,.5,1,1],[.75,.25,1,2]];
+ const mk=(start,end)=>{const cell=cells[Math.floor(r()*cells.length)];let d=start;const ev=[];let t=0;cell.forEach((du,i)=>{ev.push({t,d:du,deg:d});t+=du;const step=Math.floor(r()*5)-2;d=Math.max(-2,Math.min(N+3,d+step));});ev[ev.length-1].deg=end;return ev;};
+ const A=[mk(0,2),mk(2,4%N===0?4:4)],A2=[A[0],mk(2,1)];const B=[mk(4,5),mk(5,3)];
+ const bars=[A[0],A[1],A2[0],mk(2,1+N-N),B[0],B[1],A2[0],[{t:0,d:3,deg:0},{t:3,d:1,deg:0}]];
+ bars[3][bars[3].length-1].deg=N>5?4:3;
+ return{st,sc,root,bars,N,bpm:st.bpm};}
+function mDeg(S,deg){const N=S.N;const o=Math.floor(deg/N),i=((deg%N)+N)%N;return S.root+12+S.sc[i]+12*o+12*S.st.oct;}
+function mEnsure(){if(!MUS.ctx){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;MUS.ctx=new AC();MUS.master=MUS.ctx.createGain();MUS.master.gain.value=0.22;MUS.master.connect(MUS.ctx.destination);}if(MUS.ctx.state==='suspended')MUS.ctx.resume();return true;}
+function mTone(t,f,d,type,vol,cut){const x=MUS.ctx;const o=x.createOscillator(),g=x.createGain(),fl=x.createBiquadFilter();o.type=type;o.frequency.value=f;fl.type='lowpass';fl.frequency.value=cut||2400;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+0.015);g.gain.exponentialRampToValueAtTime(0.0001,t+Math.max(0.05,d));o.connect(fl);fl.connect(g);g.connect(MUS.master);o.start(t);o.stop(t+d+0.05);}
+function mNoise(t,d,vol,hp,bp){const x=MUS.ctx;const n=Math.floor(x.sampleRate*d),b=x.createBuffer(1,n,x.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=Math.random()*2-1;const s=x.createBufferSource();s.buffer=b;const f=x.createBiquadFilter();f.type=bp?'bandpass':'highpass';f.frequency.value=hp;const g=x.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0001,t+d);s.connect(f);f.connect(g);g.connect(MUS.master);s.start(t);}
+function mKick(t){const x=MUS.ctx;const o=x.createOscillator(),g=x.createGain();o.frequency.setValueAtTime(120,t);o.frequency.exponentialRampToValueAtTime(40,t+0.12);g.gain.setValueAtTime(0.9,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.16);o.connect(g);g.connect(MUS.master);o.start(t);o.stop(t+0.2);}
+const mf=m=>440*Math.pow(2,(m-69)/12);
+function mBar(){if(!MUS.on||!MUS.score)return;const S=MUS.score,x=MUS.ctx,spb=60/S.bpm,t0=MUS.next,bi=MUS.bar%S.bars.length;
+ for(const e of S.bars[bi]){const t=t0+e.t*spb;const f=mf(mDeg(S,e.deg)+12);mTone(t,f,e.d*spb*S.st.len,S.st.lead,0.13,2600);if(S.st.choir)mTone(t,f/2,e.d*spb*0.95,'triangle',0.09,900);if(S.st.jan&&e.d<1)mTone(t,f*1.5,e.d*spb*0.5,'square',0.04,1800);}
+ const rootM=S.root-12+S.sc[0],fifth=S.root-12+S.sc[Math.min(S.N-1,Math.floor(S.N/2))+(S.N>5?0:1)];
+ for(let b=0;b<4;b++){const t=t0+b*spb;if(b%2===0){mTone(t,mf(rootM),spb*0.5,'square',0.12,500);mKick(t);}else{mTone(t,mf(fifth+7>rootM+19?fifth:fifth+0),spb*0.4,'square',0.07,700);mNoise(t,0.11,0.35,1800,false);mNoise(t+spb*0.5,0.05,0.16,2400,false);}
+  mNoise(t+spb*0.5,0.04,0.10,5000,false);if(b===3&&bi%4===3){for(let k=0;k<4;k++)mNoise(t+spb*(0.5+k*0.125),0.05,0.22,1800,false);}}
+ MUS.next+=4*spb;MUS.bar++;MUS.timer=setTimeout(mBar,Math.max(50,(MUS.next-x.currentTime-1.2)*1000));}
+function musStop(){MUS.on=false;clearTimeout(MUS.timer);MUS.cid=-1;if(MUS.master&&MUS.ctx){const g=MUS.master.gain;g.cancelScheduledValues(MUS.ctx.currentTime);g.setTargetAtTime(0,MUS.ctx.currentTime,0.15);setTimeout(()=>{if(!MUS.on)g.value=0.22;},700);}musUI();}
+function musPlay(cid,list){if(!mEnsure())return;const C=(G&&mode!=='history')?G.C:curC();const c=C[cid];if(!c)return;clearTimeout(MUS.timer);if(MUS.master)MUS.master.gain.cancelScheduledValues(MUS.ctx.currentTime);MUS.master.gain.value=0.22;MUS.score=genScore(c);MUS.cid=cid;MUS.bar=0;MUS.on=true;MUS.next=MUS.ctx.currentTime+0.15;mBar();msg(`🎺 ${c.ru}: «${MUS.score.st.n}»`,3500);musUI();}
+function musUI(){const b=$('bMarch');if(b)b.textContent=(MUS.on&&MUS.cid===selOwner)?'⏹ Остановить марш':'🎺 Послушать марш';const m=$('bMusic');if(m)m.textContent=MUS.on?'⏹ Остановить музыку':'🎺 Марш игрока';}
+let musLast=Date.now();
+function musAuto(){if(!MUS.auto||!G||mode==='history'||MUS.on)return;if(Date.now()-musLast<70000||Math.random()>0.003)return;const warring=new Set();for(const w of G.wars){warring.add(w[0]);warring.add(w[1]);}const L=[...warring].filter(c=>G.C[c]&&G.C[c].alive);if(!L.length)return;musLast=Date.now();musPlay(L[Math.floor(Math.random()*L.length)]);setTimeout(()=>{if(MUS.on&&MUS.auto)musStop();},45000);}
+// ===== autoplay: AI commands the player's country =====
+const G_auto={on:false,war:false};
+function provsOf(c){const a=[];for(let p=0;p<G.W.P;p++)if(G.owner[p]===c)a.push(p);return a;}
+function autoPlay(){const me=G.player;if(!G_auto.on||me<0||!G.C[me].alive||G.over)return;const W=G.W;
+ let foes=[];for(const w of G.wars){const o=w[0]===me?w[1]:w[1]===me?w[0]:-1;if(o>=0&&G.C[o].alive&&o!==G.N)foes.push(o);}
+ if(!foes.length&&G_auto.war&&G.day%12===0){const nb=new Map();for(let p=0;p<W.P;p++)if(G.owner[p]===me)for(const[q]of W.adj[p]){const o=G.owner[q];if(o!==me&&o!==G.N&&G.C[o].alive&&!allied(me,o))nb.set(o,(nb.get(o)||0)+1);}let best=-1,bs=1e9;for(const[o]of nb){const s=power(o);if(s<bs&&s<power(me)*0.9){bs=s;best=o;}}if(best>=0){declareWar(me,best);foes=[best];}}
+ if(!foes.length)return;
+ let tgt=G.plan&&foes.includes(G.plan.t)?G.plan.t:-1;
+ if(tgt<0){let bs=-1;for(const o of foes){let c=0;for(let p=0;p<W.P;p++)if(G.owner[p]===o)for(const[q]of W.adj[p])if(G.owner[q]===me){c++;break;}const s=c+1-power(o)/(power(me)+1)*0.5;if(s>bs){bs=s;tgt=o;}}G.plan={t:tgt,flags:[],day:-99};}
+ const mine=G.armies.filter(a=>a.c===me);const TP=provsOf(tgt);if(!TP.length)return;
+ // recruit by flag at my border province facing target
+ if(G.C[me].man>=10&&mine.length<8+Math.sqrt(G.cnt[me])*2.2&&G.day%4===0){const bp=[];for(let p=0;p<W.P;p++)if(G.owner[p]===me&&W.adj[p].some(([q])=>G.owner[q]===tgt))bp.push(p);const pool=bp.length?bp:provsOf(me);if(pool.length){const p=pool[Math.floor(rnd()*pool.length)];spawn(me,p,10);G.C[me].man-=10;(G.pulses=G.pulses||[]).push({p,t:performance.now()});}}
+ // split big armies
+ for(const a of mine){if(a.n>=22&&a.to<0&&!a.engaged&&mine.length<14+Math.sqrt(G.cnt[me])*3){const h=a.n/2;a.n=h;a.mx=a.mx/2;G.armies.push({id:G.nid++,c:me,p:a.p,n:h,mx:a.mx,dest:-1,to:-1,prog:0,dur:2,sea:0,from:a.from});}}
+ // plan: encircle target
+ if(G.day-G.plan.day>=10){G.plan.day=G.day;let cx=0,cy=0,tw=0;for(const p of TP){const w=Math.max(1,W.prov[p].area);cx+=W.prov[p].ax*w;cy+=W.prov[p].ay*w;tw+=w;}cx/=tw;cy/=tw;
+  const idle=G.armies.filter(a=>a.c===me&&!a.engaged);const K=Math.max(1,Math.min(5,idle.length));const flags=[];const used=new Set();
+  const sec=[];for(let j=0;j<K;j++){const th=(j/K)*6.283+0.35;const dx=Math.cos(th),dy=Math.sin(th);let best=-1,bs=-1e9;for(const p of TP){const pr=W.prov[p];const s=(wdx(cx,pr.ax)*dx+(pr.ay-cy)*dy)+(W.keyCity[p]>=0?0.6:0);if(s>bs&&!used.has(p)){bs=s;best=p;}}if(best>=0){used.add(best);sec.push({p:best,th});flags.push(best);}}
+  G.plan.flags=flags;
+  for(const a of idle){if(!sec.length)break;const pa=W.prov[a.p];const ang=Math.atan2(pa.ay-cy,wdx(cx,pa.ax));let bj=0,bd=1e9;sec.forEach((s,j)=>{let d=Math.abs(((ang-s.th+9.4248)%6.2832)-3.1416);d=3.1416-d;if(d<bd){bd=d;bj=j;}});a.dest=sec[bj].p;if(a.to<0&&nextHop(a)<0)a.dest=-1;}}
+ // conquering idle armies continue
+ aiOrders(me);}
+function drawFlags(W,sx,sy){const t=performance.now();ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='18px system-ui';
+ if(G.plan&&G_auto.on)for(const p of G.plan.flags||[]){const pr=W.prov[p];ctx.fillText('🚩',sx(pr.ax),sy(pr.ay)-10);}
+ if(G.pulses){G.pulses=G.pulses.filter(q=>t-q.t<2500);for(const q of G.pulses){const pr=W.prov[q.p],a=1-(t-q.t)/2500;ctx.globalAlpha=a;ctx.fillText('🚩',sx(pr.ax),sy(pr.ay)-10-(t-q.t)/60);ctx.globalAlpha=1;animNeed=true;}}}
+let flagMode=false;
+
 // fast button activation: fire on press so DOM re-renders can't swallow clicks
 let lastFire=0;
 for(const root of[L,RP]){
